@@ -1,264 +1,242 @@
 """
 Day 1 — LLM API Foundation
-Test suite for student solution.
+AICB-P1: AI Practical Competency Program, Phase 1
 
-Run from the day folder:
-    pytest tests/ -v
-
-All external API calls are mocked — no real API keys required.
+Instructions:
+    1. Fill in every section marked with TODO.
+    2. Do NOT change function signatures.
+    3. Copy this file to solution/solution.py when done.
+    4. Run: pytest tests/ -v
 """
 
-import importlib.util
-import sys
-import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import os
+import time
+from typing import Any, Callable
+from openai import OpenAI
 
-DAY_DIR = Path(__file__).parent.parent
-SOLUTION_DIR = DAY_DIR / "solution"
+# ---------------------------------------------------------------------------
+# Estimated costs per 1K OUTPUT tokens (USD) — update if pricing changes
+# ---------------------------------------------------------------------------
+COST_PER_1K_OUTPUT_TOKENS = {
+    "gpt-4o": 0.010,
+    "gpt-4o-mini": 0.0006,
+}
 
-
-def _load(path: Path, unique_name: str):
-    spec = importlib.util.spec_from_file_location(unique_name, str(path))
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[unique_name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-if (SOLUTION_DIR / "solution.py").exists():
-    _m = _load(SOLUTION_DIR / "solution.py", f"{DAY_DIR.name}.solution")
-elif (SOLUTION_DIR / "app.py").exists():
-    _m = _load(SOLUTION_DIR / "app.py", f"{DAY_DIR.name}.solution")
-else:
-    src = "template.py" if (DAY_DIR / "template.py").exists() else "app.py"
-    _m = _load(DAY_DIR / src, f"{DAY_DIR.name}.template")
-
-call_openai = getattr(_m, 'call_openai')
-call_openai_mini = getattr(_m, 'call_openai_mini')
-compare_models = getattr(_m, 'compare_models')
-streaming_chatbot = getattr(_m, 'streaming_chatbot')
-
-
-def _make_openai_response(text: str = "Hello from OpenAI"):
-    """Create a minimal mock that looks like an OpenAI ChatCompletion response."""
-    choice = MagicMock()
-    choice.message.content = text
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
+OPENAI_MODEL = "gpt-4o"
+OPENAI_MINI_MODEL = "gpt-4o-mini"
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Task 1 — Call GPT-4o
 # ---------------------------------------------------------------------------
+def call_openai(
+    prompt: str,
+    model: str = OPENAI_MODEL,
+    temperature: float = 0.7,
+    top_p: float = 0.9,
+    max_tokens: int = 256,
+) -> tuple[str, float]:
+    """
+    Call the OpenAI Chat Completions API and return the response text + latency.
+    """
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-class TestCallOpenAI(unittest.TestCase):
+    start_time = time.time()
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+    )
+    end_time = time.time()
 
-    @patch("openai.OpenAI")
-    def test_returns_non_empty_string(self, MockOpenAI):
-        mock_client = MagicMock()
-        MockOpenAI.return_value = mock_client
-        mock_client.chat.completions.create.return_value = _make_openai_response("Test response")
+    response_text = response.choices[0].message.content
+    latency = end_time - start_time
 
-        result, latency = call_openai("Hello")
-
-        self.assertIsInstance(result, str)
-        self.assertGreater(len(result), 0)
-
-    @patch("openai.OpenAI")
-    def test_latency_is_positive_float(self, MockOpenAI):
-        mock_client = MagicMock()
-        MockOpenAI.return_value = mock_client
-        mock_client.chat.completions.create.return_value = _make_openai_response()
-
-        _, latency = call_openai("Hello")
-
-        self.assertIsInstance(latency, float)
-        self.assertGreater(latency, 0.0)
-
-    @patch("openai.OpenAI")
-    def test_returns_tuple_of_two(self, MockOpenAI):
-        mock_client = MagicMock()
-        MockOpenAI.return_value = mock_client
-        mock_client.chat.completions.create.return_value = _make_openai_response()
-
-        result = call_openai("Hello")
-
-        self.assertIsInstance(result, tuple)
-        self.assertEqual(len(result), 2)
+    return (response_text, latency)
 
 
-class TestCallOpenAIMini(unittest.TestCase):
-
-    @patch("openai.OpenAI")
-    def test_returns_non_empty_string(self, MockOpenAI):
-        mock_client = MagicMock()
-        MockOpenAI.return_value = mock_client
-        mock_client.chat.completions.create.return_value = _make_openai_response("Test response")
-
-        result, latency = call_openai_mini("Hello")
-
-        self.assertIsInstance(result, str)
-        self.assertGreater(len(result), 0)
-
-    @patch("openai.OpenAI")
-    def test_latency_is_positive_float(self, MockOpenAI):
-        mock_client = MagicMock()
-        MockOpenAI.return_value = mock_client
-        mock_client.chat.completions.create.return_value = _make_openai_response()
-
-        _, latency = call_openai_mini("Hello")
-
-        self.assertIsInstance(latency, float)
-        self.assertGreater(latency, 0.0)
-
-    @patch("openai.OpenAI")
-    def test_returns_tuple_of_two(self, MockOpenAI):
-        mock_client = MagicMock()
-        MockOpenAI.return_value = mock_client
-        mock_client.chat.completions.create.return_value = _make_openai_response()
-
-        result = call_openai_mini("Hello")
-
-        self.assertIsInstance(result, tuple)
-        self.assertEqual(len(result), 2)
+# ---------------------------------------------------------------------------
+# Task 2 — Call GPT-4o-mini
+# ---------------------------------------------------------------------------
+def call_openai_mini(
+    prompt: str,
+    temperature: float = 0.7,
+    top_p: float = 0.9,
+    max_tokens: int = 256,
+) -> tuple[str, float]:
+    """
+    Call the OpenAI Chat Completions API using gpt-4o-mini and return the
+    response text + latency.
+    """
+    return call_openai(
+        prompt=prompt,
+        model=OPENAI_MINI_MODEL,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+    )
 
 
-class TestCompareModels(unittest.TestCase):
+# ---------------------------------------------------------------------------
+# Task 3 — Compare GPT-4o vs GPT-4o-mini
+# ---------------------------------------------------------------------------
+def compare_models(prompt: str) -> dict:
+    """
+    Call both gpt-4o and gpt-4o-mini with the same prompt and return a
+    comparison dictionary.
+    """
+    gpt4o_response, gpt4o_latency = call_openai(prompt)
+    mini_response, mini_latency = call_openai_mini(prompt)
 
-    def test_returns_dict_with_required_keys(self):
-        with patch(f"{compare_models.__module__}.call_openai", return_value=("GPT-4o answer", 0.5)), \
-             patch(f"{compare_models.__module__}.call_openai_mini", return_value=("Mini answer", 0.3)):
-            result = compare_models("Test prompt")
+    # Rough token estimate: words / 0.75 ≈ tokens
+    gpt4o_tokens = len(gpt4o_response.split()) / 0.75
+    gpt4o_cost_estimate = (gpt4o_tokens / 1000) * COST_PER_1K_OUTPUT_TOKENS["gpt-4o"]
 
-        required_keys = {
-            "gpt4o_response",
-            "mini_response",
-            "gpt4o_latency",
-            "mini_latency",
-            "gpt4o_cost_estimate",
-        }
-        self.assertIsInstance(result, dict)
-        for key in required_keys:
-            self.assertIn(key, result, f"Missing key: {key}")
-
-    def test_latency_values_are_positive(self):
-        with patch(f"{compare_models.__module__}.call_openai", return_value=("GPT-4o answer", 0.5)), \
-             patch(f"{compare_models.__module__}.call_openai_mini", return_value=("Mini answer", 0.3)):
-            result = compare_models("Test prompt")
-
-        self.assertGreater(result["gpt4o_latency"], 0)
-        self.assertGreater(result["mini_latency"], 0)
-
-    def test_responses_are_non_empty_strings(self):
-        with patch(f"{compare_models.__module__}.call_openai", return_value=("GPT-4o answer", 0.5)), \
-             patch(f"{compare_models.__module__}.call_openai_mini", return_value=("Mini answer", 0.3)):
-            result = compare_models("Test prompt")
-
-        self.assertIsInstance(result["gpt4o_response"], str)
-        self.assertGreater(len(result["gpt4o_response"]), 0)
-        self.assertIsInstance(result["mini_response"], str)
-        self.assertGreater(len(result["mini_response"]), 0)
-
-    def test_cost_estimate_is_non_negative(self):
-        with patch(f"{compare_models.__module__}.call_openai", return_value=("word " * 100, 0.5)), \
-             patch(f"{compare_models.__module__}.call_openai_mini", return_value=("word " * 100, 0.3)):
-            result = compare_models("Test prompt")
-
-        self.assertGreaterEqual(result["gpt4o_cost_estimate"], 0)
+    return {
+        "gpt4o_response": gpt4o_response,
+        "mini_response": mini_response,
+        "gpt4o_latency": gpt4o_latency,
+        "mini_latency": mini_latency,
+        "gpt4o_cost_estimate": gpt4o_cost_estimate,
+    }
 
 
-class TestStreamingChatbot(unittest.TestCase):
+# ---------------------------------------------------------------------------
+# Task 4 — Streaming chatbot with conversation history
+# ---------------------------------------------------------------------------
+def streaming_chatbot() -> None:
+    """
+    Run an interactive streaming chatbot in the terminal.
+    Streams tokens, maintains last 3 turns of history.
+    """
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    history = []
 
-    def test_function_exists_and_is_callable(self):
-        self.assertTrue(callable(streaming_chatbot))
+    while True:
+        user_input = input("\nYou: ").strip()
+        if user_input.lower() in ("quit", "exit"):
+            print("Goodbye!")
+            break
+        if not user_input:
+            continue
 
-    @patch("builtins.input", side_effect=["quit"])
-    @patch("openai.OpenAI")
-    def test_exits_on_quit(self, MockOpenAI, mock_input):
-        """Chatbot should exit cleanly when user types 'quit'."""
-        mock_client = MagicMock()
-        MockOpenAI.return_value = mock_client
+        history.append({"role": "user", "content": user_input})
+
+        print("Assistant: ", end="", flush=True)
+        assistant_reply = ""
+
+        stream = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=history,
+            stream=True,
+        )
+
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content or ""
+            print(delta, end="", flush=True)
+            assistant_reply += delta
+
+        print()  # newline after streamed response
+
+        history.append({"role": "assistant", "content": assistant_reply})
+
+        # Keep only last 3 turns (1 turn = 1 user + 1 assistant message)
+        # 3 turns = 6 messages max
+        if len(history) > 6:
+            history = history[-6:]
+
+
+# ---------------------------------------------------------------------------
+# Bonus Task A — Retry with exponential backoff
+# ---------------------------------------------------------------------------
+def retry_with_backoff(
+    fn: Callable,
+    max_retries: int = 3,
+    base_delay: float = 0.1,
+) -> Any:
+    """
+    Call fn(). If it raises an exception, retry up to max_retries times
+    with exponential backoff (base_delay * 2^attempt).
+    """
+    last_exception = None
+
+    for attempt in range(max_retries + 1):
         try:
-            streaming_chatbot()
-        except StopIteration:
-            pass  # input() exhausted — acceptable
-        except NotImplementedError:
-            self.skipTest("streaming_chatbot not yet implemented")
+            return fn()
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                time.sleep(delay)
+
+    raise last_exception
 
 
-class TestRetryWithBackoff(unittest.TestCase):
-    def test_succeeds_on_first_try(self):
-        """retry_with_backoff returns value when fn succeeds immediately"""
-        result = _m.retry_with_backoff(lambda: 42)
-        self.assertEqual(result, 42)
-
-    def test_retries_on_transient_exception(self):
-        """retry_with_backoff retries and succeeds after transient failure"""
-        call_count = [0]
-        def flaky():
-            call_count[0] += 1
-            if call_count[0] < 2:
-                raise ValueError("transient")
-            return "ok"
-        result = _m.retry_with_backoff(flaky, max_retries=3, base_delay=0.01)
-        self.assertEqual(result, "ok")
-        self.assertEqual(call_count[0], 2)
-
-    def test_raises_after_max_retries(self):
-        """retry_with_backoff raises exception after exhausting retries"""
-        def always_fail():
-            raise RuntimeError("permanent failure")
-        with self.assertRaises(RuntimeError):
-            _m.retry_with_backoff(always_fail, max_retries=2, base_delay=0.01)
+# ---------------------------------------------------------------------------
+# Bonus Task B — Batch compare
+# ---------------------------------------------------------------------------
+def batch_compare(prompts: list[str]) -> list[dict]:
+    """
+    Run compare_models on each prompt and attach the original prompt.
+    """
+    results = []
+    for prompt in prompts:
+        result = compare_models(prompt)
+        result["prompt"] = prompt
+        results.append(result)
+    return results
 
 
-class TestBatchCompare(unittest.TestCase):
-    def test_returns_correct_length(self):
-        """batch_compare returns one result per prompt"""
-        with patch.object(_m, 'compare_models', return_value={
-            'gpt4o_response': 'a', 'mini_response': 'b',
-            'gpt4o_latency': 0.1, 'mini_latency': 0.2,
-            'gpt4o_cost_estimate': 0.001
-        }):
-            results = _m.batch_compare(["q1", "q2", "q3"])
-            self.assertEqual(len(results), 3)
+# ---------------------------------------------------------------------------
+# Bonus Task C — Format comparison table
+# ---------------------------------------------------------------------------
+def format_comparison_table(results: list[dict]) -> str:
+    """
+    Format a list of compare_models results as a readable text table.
+    Columns: Prompt | GPT-4o Response | Mini Response | GPT-4o Latency | Mini Latency
+    """
+    def truncate(text: str, max_len: int = 40) -> str:
+        return text if len(text) <= max_len else text[:37] + "..."
 
-    def test_result_contains_prompt_key(self):
-        """each result dict contains the original prompt"""
-        with patch.object(_m, 'compare_models', return_value={
-            'gpt4o_response': 'a', 'mini_response': 'b',
-            'gpt4o_latency': 0.1, 'mini_latency': 0.2,
-            'gpt4o_cost_estimate': 0.001
-        }):
-            results = _m.batch_compare(["hello"])
-            self.assertIn('prompt', results[0])
-            self.assertEqual(results[0]['prompt'], 'hello')
+    col_widths = [42, 42, 42, 16, 14]
+    headers = ["Prompt", "GPT-4o Response", "Mini Response", "GPT-4o Latency", "Mini Latency"]
 
+    def format_row(cells: list[str]) -> str:
+        return "| " + " | ".join(
+            cell.ljust(col_widths[i]) for i, cell in enumerate(cells)
+        ) + " |"
 
-class TestFormatComparisonTable(unittest.TestCase):
-    def test_returns_string(self):
-        """format_comparison_table returns a string"""
-        sample = [{
-            'prompt': 'test prompt', 'gpt4o_response': 'response A',
-            'mini_response': 'response B', 'gpt4o_latency': 1.0,
-            'mini_latency': 1.2, 'gpt4o_cost_estimate': 0.002
-        }]
-        result = _m.format_comparison_table(sample)
-        self.assertIsInstance(result, str)
+    separator = "+-" + "-+-".join("-" * w for w in col_widths) + "-+"
 
-    def test_contains_column_headers(self):
-        """table contains expected column headers"""
-        sample = [{
-            'prompt': 'q', 'gpt4o_response': 'a', 'mini_response': 'b',
-            'gpt4o_latency': 0.5, 'mini_latency': 0.6, 'gpt4o_cost_estimate': 0.001
-        }]
-        result = _m.format_comparison_table(sample)
-        self.assertIn('Prompt', result)
-        self.assertIn('GPT-4o', result)
-        self.assertIn('Mini', result)
+    lines = [separator, format_row(headers), separator]
+
+    for r in results:
+        row = [
+            truncate(r.get("prompt", ""), 40),
+            truncate(r.get("gpt4o_response", ""), 40),
+            truncate(r.get("mini_response", ""), 40),
+            f"{r.get('gpt4o_latency', 0):.3f}s",
+            f"{r.get('mini_latency', 0):.3f}s",
+        ]
+        lines.append(format_row(row))
+
+    lines.append(separator)
+    return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Entry point for manual testing
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    unittest.main()
+    test_prompt = "Explain the difference between temperature and top_p in one sentence."
+    print("=== Comparing models ===")
+    result = compare_models(test_prompt)
+    for key, value in result.items():
+        print(f"{key}: {value}")
+
+    print("\n=== Starting chatbot (type 'quit' to exit) ===")
+    streaming_chatbot()

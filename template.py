@@ -12,6 +12,7 @@ Instructions:
 import os
 import time
 from typing import Any, Callable
+from openai import OpenAI
 
 # ---------------------------------------------------------------------------
 # Estimated costs per 1K OUTPUT tokens (USD) — update if pricing changes
@@ -52,9 +53,24 @@ def call_openai(
         from openai import OpenAI
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     """
-    # TODO: import OpenAI, create client, call chat.completions.create,
-    #       measure start/end time, return (response_text, latency)
-    raise NotImplementedError("Implement call_openai")
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    
+    start_time = time.time()
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+    )
+    end_time = time.time()
+    
+    response_text = response.choices[0].message.content
+    latency = end_time - start_time
+    
+    return (response_text, latency)
 
 
 # ---------------------------------------------------------------------------
